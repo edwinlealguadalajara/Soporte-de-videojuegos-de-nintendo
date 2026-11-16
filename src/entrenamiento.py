@@ -1,0 +1,77 @@
+﻿import os
+import joblib
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+
+def main():
+    os.makedirs("models", exist_ok=True)
+    os.makedirs("data", exist_ok=True)
+
+    df = pd.read_csv("data/switch_limpio.csv")
+    X = df.drop(columns=["Target_Mantenimiento", "Dias_Mantenimiento"])
+    y = df["Target_Mantenimiento"]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.20, random_state=42, stratify=y
+    )
+
+    test_df = X_test.copy()
+    test_df["Target_Mantenimiento"] = y_test
+    test_df.to_csv("data/switch_test.csv", index=False)
+    print(f"División completada: {len(X_train)} entrenamiento | {len(X_test)} prueba\n")
+
+    modelos = {
+        "Regresion_Logistica": Pipeline([
+            ("scaler", StandardScaler()),
+            ("clf", LogisticRegression(max_iter=1000, random_state=42))
+        ]),
+        "Random_Forest": Pipeline([
+            ("scaler", StandardScaler()),
+            ("clf", RandomForestClassifier(n_estimators=150, max_depth=8, random_state=42))
+        ]),
+        "Gradient_Boosting": Pipeline([
+            ("scaler", StandardScaler()),
+            ("clf", GradientBoostingClassifier(n_estimators=100, learning_rate=0.08, random_state=42))
+        ])
+    }
+
+    mejor_modelo = None
+    mejor_nombre = ""
+    mejor_f1 = -1.0
+
+    print("=== COMPARACIÓN DE MODELOS DE CLASIFICACIÓN ===\n")
+
+    for nombre, pipeline in modelos.items():
+        pipeline.fit(X_train, y_train)
+        y_pred = pipeline.predict(X_test)
+
+        acc = accuracy_score(y_test, y_pred)
+        prec = precision_score(y_test, y_pred, zero_division=0)
+        rec = recall_score(y_test, y_pred, zero_division=0)
+        f1 = f1_score(y_test, y_pred, zero_division=0)
+
+        print(f"Modelo: {nombre}")
+        print(f"  Accuracy : {acc:.4f}")
+        print(f"  Precision: {prec:.4f}")
+        print(f"  Recall   : {rec:.4f}")
+        print(f"  F1-Score : {f1:.4f}\n")
+
+        if f1 > mejor_f1:
+            mejor_f1 = f1
+            mejor_nombre = nombre
+            mejor_modelo = pipeline
+
+    ruta_modelo = "models/mejor_modelo.joblib"
+    joblib.dump(mejor_modelo, ruta_modelo)
+    print(f"Mejor modelo seleccionado: {mejor_nombre} (F1-Score = {mejor_f1:.4f})")
+    print(f"Modelo guardado exitosamente en: {ruta_modelo}")
+
+
+if __name__ == "__main__":
+    main()
